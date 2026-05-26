@@ -11,10 +11,18 @@ class BeaconManager extends ChangeNotifier {
   // Discovered iBeacon devices mapped by their unique key (uuid_major_minor)
   final Map<String, BeaconDevice> _devices = {};
   
-  // List of devices to expose to the UI, sorted by RSSI (strongest first)
+  // List of devices to expose to the UI, sorted by UUID (ascending) for stable positioning
   List<BeaconDevice> get devices {
     final list = _devices.values.toList();
-    list.sort((a, b) => b.rssi.compareTo(a.rssi));
+    list.sort((a, b) {
+      final uuidComp = a.uuid.toLowerCase().compareTo(b.uuid.toLowerCase());
+      if (uuidComp != 0) return uuidComp;
+      
+      final majorComp = a.major.compareTo(b.major);
+      if (majorComp != 0) return majorComp;
+      
+      return a.minor.compareTo(b.minor);
+    });
     return list;
   }
 
@@ -28,15 +36,30 @@ class BeaconManager extends ChangeNotifier {
   bool _isScanning = false;
   bool get isScanning => _isScanning;
 
-  // Cached path to application documents directory
-  Directory? _appDocumentsDir;
+  // Cached path to the base directory for file storage
+  Directory? _baseDir;
 
   BeaconManager() {
     _initStorage();
   }
 
   Future<void> _initStorage() async {
-    _appDocumentsDir = await getApplicationDocumentsDirectory();
+    _baseDir = await _getBaseDirectory();
+  }
+
+  Future<Directory> _getBaseDirectory() async {
+    if (Platform.isAndroid) {
+      try {
+        final extDirs = await getExternalStorageDirectory();
+        if (extDirs != null) {
+          return extDirs;
+        }
+      } catch (e) {
+        debugPrint("Error getting external storage directories: $e");
+      }
+    }
+    // Fallback for non-Android platforms or if external storage is unavailable
+    return await getApplicationDocumentsDirectory();
   }
 
   /// Starts scanning for iBeacon devices.
@@ -122,7 +145,7 @@ class BeaconManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Prunes devices that haven't received advertisement packets for 5 consecutive cycles.
+  /// Prunes devices that haven't received advertisement packets for 10 consecutive cycles.
   void _pruneDevices() {
     final keysToRemove = <String>[];
     
@@ -130,9 +153,9 @@ class BeaconManager extends ChangeNotifier {
       // Increment missed cycles for all devices
       device.missedCycles++;
       
-      // If we missed 5 cycles (each cycle is 1.1s, so ~5.5 seconds), mark for removal
+      // If we missed 10 cycles (each cycle is 1.1s, so ~11 seconds), mark for removal
       // BUT: do not prune devices that are actively logging!
-      if (device.missedCycles >= 5 && !device.isLogging) {
+      if (device.missedCycles >= 10 && !device.isLogging) {
         keysToRemove.add(key);
       }
     });
@@ -149,11 +172,11 @@ class BeaconManager extends ChangeNotifier {
   Future<void> startLogging(BeaconDevice device) async {
     if (device.isLogging) return;
 
-    _appDocumentsDir ??= await getApplicationDocumentsDirectory();
+    _baseDir ??= await _getBaseDirectory();
 
     // 1. Create directory named after the device's UUID
     // Ensure lowercase UUID folder for consistent directory structures
-    final deviceDir = Directory('${_appDocumentsDir!.path}/${device.uuid.toLowerCase()}');
+    final deviceDir = Directory('${_baseDir!.path}/${device.uuid.toLowerCase()}');
     if (!await deviceDir.exists()) {
       await deviceDir.create(recursive: true);
     }
@@ -250,9 +273,9 @@ class BeaconManager extends ChangeNotifier {
     }
 
     // If stopped, load from the most recent CSV file under the uuid folder
-    _appDocumentsDir ??= await getApplicationDocumentsDirectory();
+    _baseDir ??= await _getBaseDirectory();
     
-    final deviceDir = Directory('${_appDocumentsDir!.path}/${device.uuid.toLowerCase()}');
+    final deviceDir = Directory('${_baseDir!.path}/${device.uuid.toLowerCase()}');
     if (!await deviceDir.exists()) {
       return ['[SYSTEM] No logs captured yet.'];
     }
