@@ -1,4 +1,4 @@
-package kr.hanzon.beaconlogger.bluetooth_beacon_logger
+package kr.hanzon.beaconlogger
 
 import io.flutter.embedding.android.FlutterActivity
 
