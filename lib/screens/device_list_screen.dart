@@ -476,43 +476,6 @@ class _DeviceCard extends StatelessWidget {
                 ],
               ),
             ),
-            
-            // Real-time Mini Terminal Log Area (Displayed ONLY when logging is active)
-            if (isLogging && device.miniTerminalLogs.isNotEmpty) ...[
-              Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.terminalBg,
-                  border: Border(
-                    top: BorderSide(color: AppColors.outlineVariant, width: 0.5),
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                height: 80,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  physics: const ClampingScrollPhysics(),
-                  itemCount: device.miniTerminalLogs.length,
-                  itemBuilder: (context, index) {
-                    final log = device.miniTerminalLogs[index];
-                    // Pick log line color (system commands in primary blue, data in regular text)
-                    Color logColor = AppColors.textSecondary;
-                    if (log.contains('Start logging')) {
-                      logColor = AppColors.primary;
-                    } else if (log.contains('Logging stopped')) {
-                      logColor = AppColors.secondary;
-                    }
-                    
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2.0),
-                      child: Text(
-                        log,
-                        style: AppTheme.dataMonoSm(context, color: logColor),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
           ],
         ),
       ),

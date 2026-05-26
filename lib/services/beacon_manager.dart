@@ -194,11 +194,6 @@ class BeaconManager extends ChangeNotifier {
     final file = File(filePath);
     await file.writeAsString('timestamp,txpower,rssi\n', mode: FileMode.write);
 
-    // 4. Append Start Logging system message to mini terminal
-    final timeStr = DateFormat('HH:mm:ss').format(now);
-    final logStamp = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(now);
-    device.addMiniLog('[$timeStr] Start logging - $logStamp');
-
     notifyListeners();
   }
 
@@ -209,12 +204,6 @@ class BeaconManager extends ChangeNotifier {
     device.isLogging = false;
     device.activeLogFilePath = null;
 
-    // Append Stop Logging system message to mini terminal
-    final now = DateTime.now();
-    final timeStr = DateFormat('HH:mm:ss').format(now);
-    final logStamp = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(now);
-    device.addMiniLog('[$timeStr] Logging stopped - $logStamp');
-
     notifyListeners();
   }
 
@@ -224,8 +213,7 @@ class BeaconManager extends ChangeNotifier {
     if (filePath == null) return;
 
     final now = DateTime.now();
-    final timestamp = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(now);
-    final timeStr = DateFormat('HH:mm:ss').format(now);
+    final timestamp = now.millisecondsSinceEpoch;
     
     // csv format: timestamp,txpower,rssi
     final csvLine = '$timestamp,${device.txPower},${device.rssi}\n';
@@ -233,9 +221,6 @@ class BeaconManager extends ChangeNotifier {
     try {
       final file = File(filePath);
       await file.writeAsString(csvLine, mode: FileMode.append, flush: true);
-      
-      // Update mini-terminal logs
-      device.addMiniLog('[$timeStr] RSSI: -${device.rssi.abs()}dBm, 캡처됨');
     } catch (e) {
       debugPrint("Error writing packet to CSV: $e");
     }

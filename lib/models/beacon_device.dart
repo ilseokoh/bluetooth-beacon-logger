@@ -14,7 +14,6 @@ class BeaconDevice {
   bool isLogging;
   String? activeLogFilePath;
   int packetCount;
-  final List<String> miniTerminalLogs;
 
   BeaconDevice({
     required this.uuid,
@@ -27,9 +26,7 @@ class BeaconDevice {
     this.isLogging = false,
     this.activeLogFilePath,
     this.packetCount = 0,
-    List<String>? miniTerminalLogs,
-  })  : displayedRssi = rssi,
-        miniTerminalLogs = miniTerminalLogs ?? [];
+  })  : displayedRssi = rssi;
 
   /// Unique key to identify a beacon.
   /// Typically, an iBeacon is identified by UUID + Major + Minor.
@@ -50,13 +47,7 @@ class BeaconDevice {
     }
   }
 
-  /// Adds a log message to the mini-terminal, keeping only the last 10 messages.
-  void addMiniLog(String message) {
-    miniTerminalLogs.add(message);
-    if (miniTerminalLogs.length > 10) {
-      miniTerminalLogs.removeAt(0);
-    }
-  }
+
 
   /// Creates a copy of this device with some updated fields.
   BeaconDevice copyWith({
@@ -71,7 +62,6 @@ class BeaconDevice {
     bool? isLogging,
     String? activeLogFilePath,
     int? packetCount,
-    List<String>? miniTerminalLogs,
   }) {
     final copy = BeaconDevice(
       uuid: uuid ?? this.uuid,
@@ -84,7 +74,6 @@ class BeaconDevice {
       isLogging: isLogging ?? this.isLogging,
       activeLogFilePath: activeLogFilePath ?? this.activeLogFilePath,
       packetCount: packetCount ?? this.packetCount,
-      miniTerminalLogs: miniTerminalLogs != null ? List.from(miniTerminalLogs) : List.from(this.miniTerminalLogs),
     );
     if (displayedRssi != null) {
       copy.displayedRssi = displayedRssi;
