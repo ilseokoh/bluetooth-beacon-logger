@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'services/beacon_manager.dart';
 import 'screens/device_list_screen.dart';
 import 'theme/theme.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  FlutterForegroundTask.initCommunicationPort();
+
   // Set flutter_blue_plus log level (optional, but good for debugging)
   FlutterBluePlus.setLogLevel(LogLevel.none);
   

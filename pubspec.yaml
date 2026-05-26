@@ -38,6 +38,8 @@ dependencies:
   path_provider: ^2.1.5
   intl: ^0.20.2
   google_fonts: ^8.1.0
+  flutter_foreground_task: ^8.13.0
+  permission_handler: ^11.3.1
 
 dev_dependencies:
   flutter_test:

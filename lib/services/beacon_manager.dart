@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/beacon_device.dart';
 import '../models/beacon_parser.dart';
 
@@ -41,6 +43,30 @@ class BeaconManager extends ChangeNotifier {
 
   BeaconManager() {
     _initStorage();
+    _initForegroundTask();
+  }
+
+  Future<void> _initForegroundTask() async {
+    FlutterForegroundTask.init(
+      androidNotificationOptions: AndroidNotificationOptions(
+        channelId: 'beacon_logging_channel',
+        channelName: 'Beacon Logging Service',
+        channelDescription: 'Keeps BLE scanning and logging active in the background.',
+        channelImportance: NotificationChannelImportance.LOW,
+        priority: NotificationPriority.LOW,
+        onlyAlertOnce: true,
+      ),
+      iosNotificationOptions: const IOSNotificationOptions(
+        showNotification: true,
+        playSound: false,
+      ),
+      foregroundTaskOptions: ForegroundTaskOptions(
+        eventAction: ForegroundTaskEventAction.nothing(),
+        autoRunOnBoot: false,
+        allowWakeLock: true,
+        allowWifiLock: false,
+      ),
+    );
   }
 
   Future<void> _initStorage() async {
@@ -168,9 +194,69 @@ class BeaconManager extends ChangeNotifier {
     }
   }
 
+  /// Requests the necessary permissions for background service and BLE scanning.
+  Future<bool> requestBackgroundPermissions() async {
+    if (!Platform.isAndroid) return true;
+
+    // 1. Request notification permission (Android 13+)
+    if (await Permission.notification.isDenied) {
+      await Permission.notification.request();
+    }
+
+    // 2. Request fine location permission (needed for scanning)
+    final locStatus = await Permission.locationWhenInUse.request();
+    if (!locStatus.isGranted) {
+      return false;
+    }
+
+    // 3. Request background location permission (needed for background scanning on Android 10+)
+    if (await Permission.locationAlways.isDenied) {
+      final bgLocStatus = await Permission.locationAlways.request();
+      if (!bgLocStatus.isGranted) {
+        debugPrint("Background location permission denied.");
+      }
+    }
+
+    // 4. Request ignoring battery optimizations
+    if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
+      await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+    }
+
+    return true;
+  }
+
+  /// Starts or stops the foreground service depending on whether any device is logging.
+  Future<void> _updateForegroundServiceState() async {
+    if (!Platform.isAndroid) return;
+
+    final activeLoggingDevices = _devices.values.where((d) => d.isLogging).toList();
+
+    if (activeLoggingDevices.isNotEmpty) {
+      if (!await FlutterForegroundTask.isRunningService) {
+        await FlutterForegroundTask.startService(
+          notificationTitle: 'Beacon 로깅 중',
+          notificationText: '${activeLoggingDevices.length}개의 기기 데이터를 백그라운드에서 기록하고 있습니다.',
+          callback: startCallback,
+        );
+      } else {
+        await FlutterForegroundTask.updateService(
+          notificationTitle: 'Beacon 로깅 중',
+          notificationText: '${activeLoggingDevices.length}개의 기기 데이터를 백그라운드에서 기록하고 있습니다.',
+        );
+      }
+    } else {
+      if (await FlutterForegroundTask.isRunningService) {
+        await FlutterForegroundTask.stopService();
+      }
+    }
+  }
+
   /// Starts logging to CSV for a specific device.
   Future<void> startLogging(BeaconDevice device) async {
     if (device.isLogging) return;
+
+    // Request permissions for background operations
+    await requestBackgroundPermissions();
 
     _baseDir ??= await _getBaseDirectory();
 
@@ -194,6 +280,9 @@ class BeaconManager extends ChangeNotifier {
     final file = File(filePath);
     await file.writeAsString('timestamp,txpower,rssi\n', mode: FileMode.write);
 
+    // Update foreground service state
+    await _updateForegroundServiceState();
+
     notifyListeners();
   }
 
@@ -203,6 +292,9 @@ class BeaconManager extends ChangeNotifier {
 
     device.isLogging = false;
     device.activeLogFilePath = null;
+
+    // Update foreground service state
+    await _updateForegroundServiceState();
 
     notifyListeners();
   }
@@ -307,4 +399,21 @@ class BeaconManager extends ChangeNotifier {
     stopScanning();
     super.dispose();
   }
+}
+
+// The callback function must be top-level or static
+@pragma('vm:entry-point')
+void startCallback() {
+  FlutterForegroundTask.setTaskHandler(LoggingTaskHandler());
+}
+
+class LoggingTaskHandler extends TaskHandler {
+  @override
+  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
+
+  @override
+  void onRepeatEvent(DateTime timestamp) {}
+
+  @override
+  Future<void> onDestroy(DateTime timestamp) async {}
 }
